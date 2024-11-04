@@ -1,31 +1,46 @@
 const express = require('express');
-const axios = require('axios');
+const { Resend } = require('resend');
 require('dotenv').config();
 
 const app = express();
-const port = 3000;
+const PORT = 3000;
+
+// Initialize Resend with API key from .env file
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.use(express.json());
 
 // Endpoint for sending email
 app.post('/send-email', async (req, res) => {
-    const { to, subject, text } = req.body;
+    const { from, to, subject, html } = req.body;
+
+    console.log('From address:', from);
 
     try {
-        const response = await axios.post('https://api.resend.com/emails', {
-            from: 'test@notify.clinicsanmiguel.com',  // Replace with a verified 'from' email address
-            to,
+        const data = await resend.emails.send({
+            from,
+            to: [to],
             subject,
-            text
-        }, {
-            headers: {
-                'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-                'Content-Type': 'application/json'
-            }
+            html
         });
 
-        res.status(200).json({ message: 'Email sent', response: response.data });
+        res.status(200).json({ message: 'Email sent', data });
     } catch (error) {
+        console.error('Error sending email:', error);
         res.status(500).json({ error: error.message });
     }
+});
+
+// Webhook endpoint to receive events from Resend
+app.post('/webhook', (req, res) => {
+    // Log the incoming webhook event for debugging purposes
+    console.log('Webhook event received:', req.body);
+
+    // Send a confirmation response back to Resend
+    res.status(200).json({ message: 'Webhook received' });
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
