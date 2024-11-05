@@ -31,7 +31,7 @@ app.post('/send-batch-email', async (req, res) => {
 });
 
 // Define the port (defaults to 3000)
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 80;
 
 // Start the server
 app.listen(PORT, () => {
