@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import express from 'express';
+import cors from 'cors'; // Import cors middleware
 import { Resend } from 'resend';
 import { Webhook } from 'svix';
 
@@ -8,6 +9,9 @@ dotenv.config();
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY);
 const webhookSecret = process.env.WEBHOOK_SECRET;
+
+// Enable CORS for all origins
+app.use(cors());
 
 // Store batch email progress in memory for simplicity
 const emailBatches = {}; // e.g., { batchId: { sentCount: 0, deliveredCount: 0, total: 20 } }
