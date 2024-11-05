@@ -1,46 +1,33 @@
-const express = require('express');
-const { Resend } = require('resend');
-require('dotenv').config();
+import dotenv from 'dotenv';
+dotenv.config();
+import { Resend } from 'resend';
 
-const app = express();
-const PORT = 3000;
+// Initialize the Resend client with your API key
+const resend = new Resend(process.env.RESEND_API_KEY); // Replace with your actual API key
 
-// Initialize Resend with API key from .env file
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Function to send batch emails
+async function sendBatchEmails() {
+  try {
+    const response = await resend.batch.send([
+      {
+        from: 'Acme <study@notify.clinicsanmiguel.com>',
+        to: ['raheelhussainco@gmail.com'], // Add recipients here
+        subject: 'hello world',
+        html: '<h1>it works!</h1>',
+      },
+      {
+        from: 'Acme <study@notify.clinicsanmiguel.com>',
+        to: ['raheelhussaincs@gmail.com'],
+        subject: 'world hello',
+        html: '<p>it works!</p>',
+      },
+    ]);
 
-app.use(express.json());
+    console.log('Batch email sent successfully:', response);
+  } catch (error) {
+    console.error('Error sending batch email:', error);
+  }
+}
 
-// Endpoint for sending email
-app.post('/send-email', async (req, res) => {
-    const { from, to, subject, html } = req.body;
-
-    console.log('From address:', from);
-
-    try {
-        const data = await resend.emails.send({
-            from,
-            to: [to],
-            subject,
-            html
-        });
-
-        res.status(200).json({ message: 'Email sent', data });
-    } catch (error) {
-        console.error('Error sending email:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Webhook endpoint to receive events from Resend
-app.post('/webhook', (req, res) => {
-    // Log the incoming webhook event for debugging purposes
-    console.log('Webhook event received:', req.body);
-
-    // Send a confirmation response back to Resend
-    res.status(200).json({ message: 'Webhook received' });
-});
-
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// Run the function to send the emails
+sendBatchEmails();
