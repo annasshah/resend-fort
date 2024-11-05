@@ -42,13 +42,15 @@ app.post('/send-batch-email', async (req, res) => {
   }
 });
 
-// Webhook endpoint to receive email events
+// Webhook endpoint to receive email events without verification
 app.post('/webhook', (req, res) => {
   try {
-    const wh = new Webhook(webhookSecret);
-    const payload = wh.verify(req.body.toString(), req.headers); // Verify signature
+    // Verification is temporarily disabled
+    // const wh = new Webhook(webhookSecret);
+    // const payload = wh.verify(req.body.toString(), req.headers);
 
-    const event = JSON.parse(payload);
+    // Directly parse the incoming payload
+    const event = JSON.parse(req.body.toString());
     const { type, data } = event;
 
     // Determine which batch this email belongs to (assuming email_id is unique per batch)
@@ -77,8 +79,8 @@ app.post('/webhook', (req, res) => {
 
     res.status(200).send({ message: 'Webhook received successfully' });
   } catch (error) {
-    console.error('Webhook verification failed:', error.message);
-    res.status(400).send({ error: 'Webhook verification failed' });
+    console.error('Error processing webhook:', error.message);
+    res.status(400).send({ error: 'Error processing webhook' });
   }
 });
 
