@@ -50,8 +50,13 @@ app.post('/send-batch-email', async (req, res) => {
     // Assuming response includes email IDs, update tracking
     if (Array.isArray(response)) {
       response.forEach((result) => {
-        if (result.email_id) emailBatches[batchId].emailIds.push(result.email_id);
+        if (result.email_id) {
+          emailBatches[batchId].emailIds.push(result.email_id);
+          console.log(`Stored email_id ${result.email_id} for batchId ${batchId}`);
+        }
       });
+    } else {
+      console.error('Unexpected response format from resend.batch.send:', response);
     }
 
     res.status(200).send({ message: 'Batch email sent successfully', batchId });
@@ -61,9 +66,25 @@ app.post('/send-batch-email', async (req, res) => {
   }
 });
 
-// Webhook endpoint to receive email events without verification
+// Webhook endpoint to receive email events with optional verification
 app.post('/webhook', (req, res) => {
   try {
+    // Optional: verify webhook signature with svix (only if webhookSecret is provided)
+    if (webhookSecret) {
+      const wh = new Webhook(webhookSecret);
+      const payload = req.body.toString();
+      const headers = req.headers;
+
+      // Verify the payload and headers
+      try {
+        const verifiedEvent = wh.verify(payload, headers);
+        console.log('Verified webhook event:', verifiedEvent);
+      } catch (error) {
+        console.error('Webhook verification failed:', error.message);
+        return res.status(400).send({ error: 'Webhook verification failed' });
+      }
+    }
+
     // Parse the incoming payload
     const event = JSON.parse(req.body.toString());
     console.log('Received webhook event:', event);
@@ -99,7 +120,7 @@ app.post('/webhook', (req, res) => {
         console.log(`Unhandled event type: ${type}`);
     }
 
-    // Calculate progress
+    // Calculate progress and log it
     const sentPercentage = (batch.sentCount / batch.total) * 100;
     const deliveredPercentage = (batch.deliveredCount / batch.total) * 100;
 
