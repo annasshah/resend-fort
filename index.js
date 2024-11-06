@@ -23,6 +23,10 @@ app.use(express.json());
 // Endpoint to send batch emails
 app.post('/send-batch-email', async (req, res) => {
   const { from, subject, html, recipients } = req.body;
+  if (!from || !subject || !html || !recipients || !recipients.length) {
+    return res.status(400).send({ error: 'Missing required fields' });
+  }
+
   const messages = recipients.map((email) => ({
     from,
     to: [email],
@@ -35,8 +39,7 @@ app.post('/send-batch-email', async (req, res) => {
     sentCount: 0,
     deliveredCount: 0,
     total: recipients.length,
-    sentProgress: null,
-    deliveredProgress: null
+    emailIds: []
   };
 
   try {
@@ -44,9 +47,12 @@ app.post('/send-batch-email', async (req, res) => {
     const response = await resend.batch.send(messages);
     console.log('Batch send response:', response);
 
-    // If response includes progress summary, store it
-    emailBatches[batchId].sentProgress = response.sentProgress || 'Progress not available';
-    emailBatches[batchId].deliveredProgress = response.deliveredProgress || 'Progress not available';
+    // Assuming response includes email IDs, update tracking
+    if (Array.isArray(response)) {
+      response.forEach((result) => {
+        if (result.email_id) emailBatches[batchId].emailIds.push(result.email_id);
+      });
+    }
 
     res.status(200).send({ message: 'Batch email sent successfully', batchId });
   } catch (error) {
@@ -60,14 +66,24 @@ app.post('/webhook', (req, res) => {
   try {
     // Parse the incoming payload
     const event = JSON.parse(req.body.toString());
+    console.log('Received webhook event:', event);
+
     const { type, data } = event;
+
+    if (!data || !data.email_id) {
+      console.error('Missing email_id in webhook data');
+      return res.status(400).send({ error: 'Invalid payload: Missing email_id' });
+    }
 
     // Find the batch that includes this email_id
     const batchId = Object.keys(emailBatches).find((id) =>
       emailBatches[id].emailIds.includes(data.email_id)
     );
 
-    if (!batchId) return res.status(404).send({ error: 'Batch not found for this email' });
+    if (!batchId) {
+      console.error('Batch not found for email_id:', data.email_id);
+      return res.status(404).send({ error: 'Batch not found for this email' });
+    }
 
     const batch = emailBatches[batchId];
 
@@ -93,7 +109,7 @@ app.post('/webhook', (req, res) => {
     res.status(200).send({ message: 'Webhook received successfully' });
   } catch (error) {
     console.error('Error processing webhook:', error.message);
-    res.status(400).send({ error: 'Error processing webhook' });
+    res.status(400).send({ error: 'Error processing webhook', details: error.message });
   }
 });
 
