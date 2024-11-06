@@ -72,8 +72,12 @@ app.post('/webhook', (req, res) => {
     // Optional: verify webhook signature with svix (only if webhookSecret is provided)
     if (webhookSecret) {
       const wh = new Webhook(webhookSecret);
-      const payload = req.body.toString();
-      const headers = req.headers;
+      const payload = req.body.toString(); // Raw payload as string
+      const headers = {
+        'svix-id': req.headers['svix-id'],
+        'svix-timestamp': req.headers['svix-timestamp'],
+        'svix-signature': req.headers['svix-signature']
+      };
 
       // Verify the payload and headers
       try {
