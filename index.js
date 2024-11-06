@@ -16,7 +16,7 @@ app.use(cors());
 // Store batch email progress in memory
 const emailBatches = {}; // e.g., { batchId: { sentCount: 0, deliveredCount: 0, total: 20, emailIds: [] } }
 
-// Middleware to parse raw request body for webhook verification
+// Middleware to parse JSON and raw request bodies
 app.use('/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
@@ -30,23 +30,23 @@ app.post('/send-batch-email', async (req, res) => {
     html,
   }));
   
-  // Initialize batch tracking with an empty list for email IDs
   const batchId = Date.now(); // Unique batch ID
   emailBatches[batchId] = {
     sentCount: 0,
     deliveredCount: 0,
     total: recipients.length,
-    emailIds: [] // Track each email's ID here
+    sentProgress: null,
+    deliveredProgress: null
   };
 
   try {
-    // Assuming resend.batch.send returns an array of responses, each with an email_id
+    // Send emails in batch and get a response
     const response = await resend.batch.send(messages);
+    console.log('Batch send response:', response);
 
-    // Add each email ID from the response to the batch tracking
-    response.forEach((result) => {
-      emailBatches[batchId].emailIds.push(result.email_id);
-    });
+    // If response includes progress summary, store it
+    emailBatches[batchId].sentProgress = response.sentProgress || 'Progress not available';
+    emailBatches[batchId].deliveredProgress = response.deliveredProgress || 'Progress not available';
 
     res.status(200).send({ message: 'Batch email sent successfully', batchId });
   } catch (error) {
@@ -58,7 +58,7 @@ app.post('/send-batch-email', async (req, res) => {
 // Webhook endpoint to receive email events without verification
 app.post('/webhook', (req, res) => {
   try {
-    // Directly parse the incoming payload
+    // Parse the incoming payload
     const event = JSON.parse(req.body.toString());
     const { type, data } = event;
 
@@ -115,9 +115,8 @@ app.get('/batch-progress/:batchId', (req, res) => {
   });
 });
 
-// Define the port (defaults to 3000)
+// Start the server
 const PORT = process.env.PORT || 80;
-
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
