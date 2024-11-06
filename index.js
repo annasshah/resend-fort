@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import express from 'express';
-import cors from 'cors'; // Import cors middleware
+import cors from 'cors';
 import { Resend } from 'resend';
 import { Webhook } from 'svix';
 
@@ -13,8 +13,8 @@ const webhookSecret = process.env.WEBHOOK_SECRET;
 // Enable CORS for all origins
 app.use(cors());
 
-// Store batch email progress in memory for simplicity
-const emailBatches = {}; // e.g., { batchId: { sentCount: 0, deliveredCount: 0, total: 20 } }
+// Store batch email progress in memory
+const emailBatches = {}; // e.g., { batchId: { sentCount: 0, deliveredCount: 0, total: 20, emailIds: [] } }
 
 // Middleware to parse raw request body for webhook verification
 app.use('/webhook', express.raw({ type: 'application/json' }));
@@ -30,18 +30,27 @@ app.post('/send-batch-email', async (req, res) => {
     html,
   }));
   
-  // Initialize batch tracking
+  // Initialize batch tracking with an empty list for email IDs
   const batchId = Date.now(); // Unique batch ID
   emailBatches[batchId] = {
     sentCount: 0,
     deliveredCount: 0,
     total: recipients.length,
+    emailIds: [] // Track each email's ID here
   };
 
   try {
-    await resend.batch.send(messages);
+    // Assuming resend.batch.send returns an array of responses, each with an email_id
+    const response = await resend.batch.send(messages);
+
+    // Add each email ID from the response to the batch tracking
+    response.forEach((result) => {
+      emailBatches[batchId].emailIds.push(result.email_id);
+    });
+
     res.status(200).send({ message: 'Batch email sent successfully', batchId });
   } catch (error) {
+    console.error('Error sending batch email:', error);
     res.status(500).send({ error: 'Error sending batch email', details: error.message });
   }
 });
@@ -49,20 +58,20 @@ app.post('/send-batch-email', async (req, res) => {
 // Webhook endpoint to receive email events without verification
 app.post('/webhook', (req, res) => {
   try {
-    // Verification is temporarily disabled
-    // const wh = new Webhook(webhookSecret);
-    // const payload = wh.verify(req.body.toString(), req.headers);
-
     // Directly parse the incoming payload
     const event = JSON.parse(req.body.toString());
     const { type, data } = event;
 
-    // Determine which batch this email belongs to (assuming email_id is unique per batch)
-    const batchId = Object.keys(emailBatches).find((id) => emailBatches[id].total > 0);
-    if (!batchId) return res.status(404).send({ error: 'Batch not found' });
+    // Find the batch that includes this email_id
+    const batchId = Object.keys(emailBatches).find((id) =>
+      emailBatches[id].emailIds.includes(data.email_id)
+    );
+
+    if (!batchId) return res.status(404).send({ error: 'Batch not found for this email' });
 
     const batch = emailBatches[batchId];
 
+    // Update batch counts based on the event type
     switch (type) {
       case 'email.sent':
         batch.sentCount++;
